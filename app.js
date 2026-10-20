@@ -121,20 +121,36 @@ const okN = n => Math.abs(n) <= 7;
 
 /* ======================= Тема: гриф ======================= */
 
-// Объяснение «как найти»: от ближайшей опорной точки (0, 5, 12 лад) считаем лады.
-function fretWalk(s, f) {
+// Ближайшая опорная точка (0, 5, 12 лад) — от неё считаем лады.
+function fretAnchor(s, f) {
   const a = [0, 5, 12].reduce((b, x) => Math.abs(x - f) < Math.abs(b - f) ? x : b);
   const st = STRINGS[s].name;
   let anchor;
   if (a === 0) anchor = `открытая струна ${st}`;
   else if (a === 12) anchor = `12-й лад — снова ${st}, октавой выше`;
   else anchor = `5-й лад — ${PC_SHARP[pcAt(s, 5)]}` + (s < 3 ? ` (как открытая ${STRINGS[s + 1].name})` : '');
+  return { a, anchor };
+}
+
+// Объяснение «как найти»: от опоры по ладам до нужной ноты.
+function fretWalk(s, f) {
+  const { a, anchor } = fretAnchor(s, f);
   if (a === f) return `Опорная точка: ${anchor}.`;
   const dir = f > a ? 1 : -1;
   const names = dir > 0 ? PC_SHARP : PC_FLAT;
   const steps = [];
   for (let x = a + dir; x !== f + dir; x += dir) steps.push(`${x}: ${names[pcAt(s, x)]}`);
   return `Опора: ${anchor}. Дальше ${dir > 0 ? 'вверх' : 'вниз'} по ладам → ${steps.join(' → ')}.`;
+}
+
+const NO_SHARP = 'Помни: между E–F и B–C промежуточной ноты нет — это соседние лады.';
+
+function fretNameHint(s, f) {
+  const { a, anchor } = fretAnchor(s, f);
+  if (f === 0) return 'Открытая струна звучит так, как называется.';
+  if (f === 12) return '12-й лад — это октава открытой струны.';
+  if (f === 5) return s < 3 ? '5-й лад любой струны звучит как следующая (более тонкая) открытая струна.' : `Отсчитай 5 ладов от открытой G. ${NO_SHARP}`;
+  return `Ближайшая опора — ${anchor}. Отсчитай от неё ${fretWord(Math.abs(f - a))} ${f > a ? 'вверх' : 'вниз'}. ${NO_SHARP}`;
 }
 
 function qFretName() {
@@ -146,6 +162,7 @@ function qFretName() {
     board: { dots: [{ s, f, kind: 'mark' }] },
     ...choices(pcName(pc), d),
     explain: fretWalk(s, f),
+    hint: fretNameHint(s, f),
     audio: [midiAt(s, f)],
   };
 }
@@ -161,6 +178,7 @@ function qFretFind() {
     board: { dots: [], tap: true, onlyString: s },
     cells,
     explain: fretWalk(s, cells[0][1]) + extra,
+    hint: `Опоры на струне ${STRINGS[s].name}: 0 — ${STRINGS[s].name}, 5 — ${PC_SHARP[pcAt(s, 5)]}, 12 — снова ${STRINGS[s].name}. Возьми ближайшую к ${pcName(pc)} и отсчитай лады. ${NO_SHARP}`,
     audio: [midiAt(s, cells[0][1])],
   };
 }
@@ -174,6 +192,7 @@ function qFretOctave() {
     prompt: `Отметь эту же ноту (${pcName(pcAt(s, f))}) октавой выше`,
     board: { dots: [{ s, f, kind: 'root' }], tap: true },
     cells: cellsWithMidi(m),
+    hint: 'Октава на басу — это фигура «через одну струну вверх и на 2 лада дальше» (5 + 5 + 2 = 12 полутонов).',
     explain: `Октава на басу — через одну струну вверх и на 2 лада дальше (5 + 5 + 2 = 12 полутонов): ${posName(s, f)} → ${posName(s + 2, f + 2)}.${tail}`,
     audio: [midiAt(s, f), m],
   };
@@ -192,6 +211,7 @@ function qFretUnison() {
     prompt: `Найди тот же звук на струне ${STRINGS[ts].name}`,
     board: { dots: [{ s, f, kind: 'root' }], tap: true, onlyString: ts },
     cells: [[ts, tf]],
+    hint: `Соседние струны отличаются на 5 полутонов. Подумай: ${up ? 'струна выше уже звучит выше — значит, сдвигаться надо к голове грифа' : 'струна ниже звучит ниже — значит, сдвигаться надо к корпусу'}, на сколько ладов?`,
     explain: `${why}: ${posName(s, f)} = ${posName(ts, tf)} (${pcName(pcAt(s, f))}).`,
     audio: [midiAt(s, f)],
   };
@@ -199,23 +219,23 @@ function qFretUnison() {
 
 const FRET_FACTS = [
   { q: 'Между какими натуральными нотами нет диеза/бемоля?', a: 'E–F и B–C', w: ['C–D и F–G', 'A–B и D–E', 'G–A и E–F'],
-    e: 'Ми–фа и си–до стоят на соседних ладах (полутон). Между остальными натуральными нотами пропускается один лад (тон).' },
+    e: 'Ми–фа и си–до стоят на соседних ладах (полутон). Между остальными натуральными нотами пропускается один лад (тон).', h: 'Вспомни клавиатуру пианино: где между белыми клавишами нет чёрной?' },
   { q: '12-й лад любой струны — это…', a: 'нота открытой струны, октавой выше', w: ['квинта от открытой струны', 'та же нота, что на 5-м ладу', 'нота соседней струны'],
-    e: '12 ладов = 12 полутонов = октава. После 12-го лада гриф повторяется.' },
+    e: '12 ладов = 12 полутонов = октава. После 12-го лада гриф повторяется.', h: 'На грифе 12 полутонов. Сколько полутонов в октаве?' },
   { q: '5-й лад струны E звучит так же, как…', a: 'открытая струна A', w: ['открытая струна D', '7-й лад струны A', 'открытая струна G'],
-    e: 'Соседние струны баса настроены через кварту (5 полутонов): 5-й лад любой струны = следующая открытая струна.' },
+    e: 'Соседние струны баса настроены через кварту (5 полутонов): 5-й лад любой струны = следующая открытая струна.', h: 'Посчитай от E вверх 5 ладов: E → F → F♯ → … и сравни с названиями струн.' },
   { q: 'Сколько полутонов между соседними струнами баса (EADG)?', a: '5 — чистая кварта', w: ['4 — большая терция', '7 — чистая квинта', '2 — тон'],
-    e: 'E→A, A→D, D→G — везде по 5 полутонов. Поэтому при переходе на соседнюю струну всё сдвигается на 5 ладов.' },
+    e: 'E→A, A→D, D→G — везде по 5 полутонов. Поэтому при переходе на соседнюю струну всё сдвигается на 5 ладов.', h: 'Посчитай лады от E до A: E → F → F♯ → G → G♯ → A.' },
   { q: 'Как найти октаву ноты на басу?', a: 'через струну вверх, на 2 лада дальше', w: ['на соседней струне, на 2 лада дальше', 'та же струна, на 7 ладов дальше', 'через струну, на том же ладу'],
-    e: 'Через струну — это +10 полутонов (5 + 5), плюс 2 лада = 12. Самая ходовая фигура на басу.' },
+    e: 'Через струну — это +10 полутонов (5 + 5), плюс 2 лада = 12. Самая ходовая фигура на басу.', h: 'Октава — 12 полутонов. Струна выше даёт +5, через струну — +10. Сколько не хватает?' },
   { q: 'Где тот же звук на соседней, более высокой струне?', a: 'на 5 ладов ближе к голове грифа', w: ['на 5 ладов дальше', 'на том же ладу', 'на 7 ладов ближе к голове'],
-    e: 'Струна выше звучит на 5 полутонов выше — значит, сдвигаемся на 5 ладов назад. Например, E-7 (B) = A-2 (B).' },
+    e: 'Струна выше звучит на 5 полутонов выше — значит, сдвигаемся на 5 ладов назад. Например, E-7 (B) = A-2 (B).', h: 'Струна выше уже звучит на 5 полутонов выше. В какую сторону сдвинуться, чтобы это компенсировать?' },
   { q: 'Какая нота на 3-м ладу струны A?', a: 'C', w: ['B', 'C♯/D♭', 'D'],
-    e: 'A → A♯ (1) → B (2) → C (3). Между B и C полутона нет, поэтому C уже на 3-м ладу.' },
+    e: 'A → A♯ (1) → B (2) → C (3). Между B и C полутона нет, поэтому C уже на 3-м ладу.', h: 'Посчитай от A по ладам. Между B и C промежуточной ноты нет.' },
   { q: '7-й лад струны E — та же нота, что…', a: '2-й лад струны A', w: ['открытая струна D', '2-й лад струны D', '5-й лад струны A'],
-    e: 'Тот же звук на струне выше — на 5 ладов назад: 7 − 5 = 2. Это нота B.' },
+    e: 'Тот же звук на струне выше — на 5 ладов назад: 7 − 5 = 2. Это нота B.', h: 'Тот же звук на соседней, более высокой струне находится на 5 ладов ближе к голове грифа.' },
   { q: 'Какие ноты на 3-м ладу струн E, A, D, G?', a: 'G, C, F, B♭', w: ['G, C, F, B', 'F♯, B, E, A', 'G, B, E, A'],
-    e: 'Полезно знать наизусть: 3-й лад даёт G – C – F – B♭. Каждая следующая нота на кварту выше.' },
+    e: 'Полезно знать наизусть: 3-й лад даёт G – C – F – B♭. Каждая следующая нота на кварту выше.', h: 'Найди ноту на 3-м ладу струны E, а дальше каждая следующая струна даёт ноту на кварту (5 полутонов) выше.' },
 ];
 
 /* ======================= Тема: интервалы ======================= */
@@ -246,22 +266,25 @@ function placeInterval(semis) {
   }
 }
 
+const SEMIS_HINT = 'Опорные числа: кварта — 5 полутонов (соседняя струна, тот же лад), квинта — 7, октава — 12. Остальное отсчитай от них; малый интервал на полутон меньше большого.';
+
 function qIntSemis() {
   const iv = pick(INTERVALS);
   const explain = `${ivLabel(iv)} = ${semiWord(iv.s)}. На грифе: ${iv.shape}.`;
+  const hint = SEMIS_HINT;
   if (Math.random() < 0.5) {
     return {
       topic: 'int', id: `is-${iv.s}`,
       prompt: `Сколько полутонов (ладов) в интервале ${ivInline(iv)}?`,
       ...choices(String(iv.s), nearIntervals(iv).map(x => String(x.s))),
-      explain,
+      explain, hint,
     };
   }
   return {
     topic: 'int', id: `isr-${iv.s}`,
     prompt: `Интервал в ${semiWord(iv.s)} — это…`,
     ...choices(ivLabel(iv), nearIntervals(iv).map(ivLabel)),
-    explain,
+    explain, hint,
   };
 }
 
@@ -274,6 +297,7 @@ function qIntShape() {
     prompt: 'Какой интервал от красной ноты до синей?',
     board: { dots: [{ s: p.s, f: p.f, kind: 'root' }, { s: p.ts, f: p.tf, kind: 'mark' }] },
     ...choices(ivLabel(iv), nearIntervals(iv).map(ivLabel)),
+    hint: 'Посчитай полутоны: струна выше = +5, через струну = +10, плюс или минус разница в ладах. Потом переведи число в интервал (опоры: 5 = ч4, 7 = ч5, 12 = октава).',
     explain: `${cap(shapeDesc(ds, df))}: ${shapeMath(ds, df)} → ${ivLabel(iv)}. ${pcName(pcAt(p.s, p.f))} → ${pcName(pcAt(p.ts, p.tf))}.`,
     audio: [midiAt(p.s, p.f), midiAt(p.ts, p.tf)],
   };
@@ -291,6 +315,7 @@ function qIntTap() {
       prompt: `Отметь ${ivInline(iv)} вверх от красной ноты`,
       board: { dots: [{ s, f, kind: 'root' }], tap: true },
       cells,
+      hint: `${ivLabel(iv)} = ${semiWord(iv.s)}. Струна выше даёт +5, через струну +10 — остаток добери ладами (или сдвинься назад, если получился перебор).`,
       explain: `${ivLabel(iv)} = ${semiWord(iv.s)}. Удобная форма: ${iv.shape}. От ${pcName(pcAt(s, f))} это ${pcName(m % 12)}.`,
       audio: [midiAt(s, f), m],
     };
@@ -335,6 +360,7 @@ function qIntSpell() {
       topic: 'int', id: `isp-${root}-${iv.s}`,
       prompt: `Какая нота на ${ivInline(iv)} выше ${root}?`,
       ...choices(r.name, d),
+      hint: `${cap(degree)} — это ${iv.steps + 1}-я буква, если ${root[0]} считать первой (буквы по кругу: C D E F G A B). Потом проверь полутоны — нужно ${iv.s}: не хватает — ставь диез, перебор — бемоль.`,
       explain: `${cap(degree)} — это ${iv.steps + 1}-я буква: ${letters.join('–')}. ${count}`,
       audio: [rootMidi, rootMidi + iv.s],
     };
@@ -343,17 +369,17 @@ function qIntSpell() {
 
 const INT_FACTS = [
   { q: 'Тот же лад на соседней струне выше — какой это интервал?', a: 'ч4 · чистая кварта', w: ['ч5 · чистая квинта', 'б3 · большая терция', 'ч8 · октава'],
-    e: 'Соседняя струна выше звучит на 5 полутонов выше — это кварта.' },
+    e: 'Соседняя струна выше звучит на 5 полутонов выше — это кварта.', h: 'Сколько полутонов между соседними струнами? Какой интервал состоит из такого числа полутонов?' },
   { q: 'Где проще всего взять квинту ВНИЗ от тоники?', a: 'тот же лад, на струну ниже', w: ['та же струна, 5 ладов назад', 'через струну, тот же лад', 'на струну ниже, 2 лада назад'],
-    e: 'Тот же лад на струне ниже — это квинта тоники, только октавой ниже. Классика «тоника–квинта»: C на A-3 и G на E-3.' },
+    e: 'Тот же лад на струне ниже — это квинта тоники, только октавой ниже. Классика «тоника–квинта»: C на A-3 и G на E-3.', h: 'Квинта вниз = кварта вверх, только октавой ниже. Где на басу кварта, если смотреть с нижней струны на верхнюю?' },
   { q: 'Какой интервал от тоники делает трезвучие минорным?', a: 'м3 · малая терция', w: ['б3 · большая терция', 'ч5 · чистая квинта', 'м7 · малая септима'],
-    e: 'Минорное трезвучие: 1 – м3 – ч5. Мажорное: 1 – б3 – ч5. Разница всего в один лад.' },
+    e: 'Минорное трезвучие: 1 – м3 – ч5. Мажорное: 1 – б3 – ч5. Разница всего в один лад.', h: 'Трезвучие строится из терций. Мажор и минор различаются только одной нотой — 3-й ступенью.' },
   { q: 'Чем отличается б3 от м3 на грифе (струна выше)?', a: 'б3 — 1 лад назад, м3 — 2 лада назад', w: ['б3 — тот же лад, м3 — 1 лад назад', 'б3 — 2 лада назад, м3 — 1 лад назад', 'ничем'],
-    e: 'Струна выше = +5 полутонов. б3 = 4 = 5 − 1, м3 = 3 = 5 − 2.' },
+    e: 'Струна выше = +5 полутонов. б3 = 4 = 5 − 1, м3 = 3 = 5 − 2.', h: 'Струна выше = +5 полутонов. б3 — 4 полутона, м3 — 3. Сколько ладов отнять от 5?' },
   { q: 'Сколько полутонов в тритоне?', a: '6', w: ['5', '7', '4'],
-    e: 'Тритон — ровно пол-октавы (ув4 = ум5). На грифе: струна выше, +1 лад.' },
+    e: 'Тритон — ровно пол-октавы (ув4 = ум5). На грифе: струна выше, +1 лад.', h: 'Тритон делит октаву (12 полутонов) ровно пополам.' },
   { q: 'Из каких ступеней состоит доминантсептаккорд (C7)?', a: '1 – б3 – ч5 – м7', w: ['1 – б3 – ч5 – б7', '1 – м3 – ч5 – м7', '1 – м3 – ум5 – м7'],
-    e: 'C7 = C – E – G – B♭. б7 даёт Cmaj7, а м3 + м7 — Cm7.' },
+    e: 'C7 = C – E – G – B♭. б7 даёт Cmaj7, а м3 + м7 — Cm7.', h: 'Основа — мажорное трезвучие, а септима «доминантовая», то есть на тон ниже октавы.' },
 ];
 
 /* ======================= Тема: тональности ======================= */
@@ -368,6 +394,18 @@ function keyRule(k) {
   if (k.n === -1) return 'Фа мажор — один бемоль (B♭). Его просто запоминаем.';
   return `Знаки: ${s.join(' ')}. Подсказка: предпоследний бемоль (${s.at(-2)}) — это и есть тоника. Круг: ${CIRCLE_FLATS}`;
 }
+const isFlatKey = k => k.n < 0;
+function keyCountHint(k) {
+  return isFlatKey(k)
+    ? `${k.tonic === 'F' ? 'F' : 'Бемоль в названии'} — значит, тональность бемольная. Идём от C квартами вверх (кварта — 4-я буква, если текущую считать первой), каждый шаг +1 бемоль. Сколько шагов до ${k.tonic}?`
+    : `Без бемоля в названии (и не F) — тональность диезная. Идём от C квинтами вверх (квинта — 5-я буква, если текущую считать первой), каждый шаг +1 диез. Сколько шагов до ${k.tonic}?`;
+}
+function keyFromSignsHint(n) {
+  if (n === 0) return 'С этой тональности начинается квинтовый круг — играется на одних белых клавишах.';
+  if (n === -1) return 'Один бемоль — особый случай, его запоминают: тональность на кварту выше C (C–D–E–F).';
+  if (n > 0) return `Выпиши ${signsText(n)} по порядку (F C G D A E B) и поднимись на полтона от последнего.`;
+  return `Выпиши ${signsText(n)} по порядку (B E A D G C F). Тоника — предпоследний бемоль.`;
+}
 const neighborNs = n => shuffle([n + 1, n - 1, -n, n + 2, n - 2]).filter(x => okN(x) && x !== n);
 
 function qKeyCount() {
@@ -377,6 +415,7 @@ function qKeyCount() {
     prompt: `Сколько знаков в тональности ${keyName(k.tonic)}?`,
     ...choices(signsText(k.n), neighborNs(k.n).map(signsText)),
     explain: keyRule(k),
+    hint: keyCountHint(k),
   };
 }
 
@@ -387,6 +426,7 @@ function qKeyWhich() {
     prompt: `Какой мажор — ${signsText(k.n)}?`,
     ...choices(keyName(k.tonic), neighborNs(k.n).map(n => keyName(majorByN(n).tonic))),
     explain: keyRule(k),
+    hint: keyFromSignsHint(k.n),
   };
 }
 
@@ -397,6 +437,9 @@ function qKeyFromSigns() {
     prompt: `В ключе: ${keySigns(k.n).join(' ')}. Какая это мажорная тональность?`,
     ...choices(keyName(k.tonic), neighborNs(k.n).map(n => keyName(majorByN(n).tonic))),
     explain: keyRule(k),
+    hint: k.n > 0 ? 'Посмотри на последний диез и поднимись от него на полтона.'
+      : k.n === -1 ? 'Один бемоль — особый случай, его запоминают: тональность на кварту выше C (C–D–E–F).'
+      : 'Тоника — предпоследний бемоль в списке (с бемолем в названии).',
   };
 }
 
@@ -408,6 +451,7 @@ function qKeySignsList() {
     prompt: `Какие знаки в тональности ${keyName(k.tonic)}?`,
     ...choices(list(k.n), neighborNs(k.n).map(list)),
     explain: keyRule(k),
+    hint: `${keyCountHint(k)} Потом выпиши знаки по порядку: ${isFlatKey(k) ? 'B E A D G C F. Проверка: предпоследний бемоль — тоника' : 'F C G D A E B. Проверка: последний диез на полтона ниже тоники'}.`,
   };
 }
 
@@ -422,6 +466,7 @@ function qKeyRelative() {
       prompt: `Какой минор параллелен тональности ${keyName(k.tonic)}?`,
       ...choices(keyName(m, true), [keyName(k.tonic, true), ...near.map(t => keyName(relMinor(t), true))]),
       explain,
+      hint: `Параллельный минор — на 3 полутона ниже тоники (та же струна, 3 лада назад) и на 2 буквы ниже по алфавиту нот, например ${k.tonic === 'C' ? 'G → E' : 'C → A'}.`,
     };
   }
   return {
@@ -429,6 +474,7 @@ function qKeyRelative() {
     prompt: `Какой мажор параллелен тональности ${keyName(m, true)}?`,
     ...choices(keyName(k.tonic), [keyName(m), ...near.map(t => keyName(t))]),
     explain,
+    hint: `Параллельный мажор — на 3 полутона выше тоники минора (та же струна, 3 лада вперёд) и на 2 буквы выше, например ${m === 'A' ? 'E → G' : 'A → C'}.`,
   };
 }
 
@@ -441,6 +487,9 @@ function qKeyOrder() {
     topic: 'key', id: `ko-${sharp ? 's' : 'f'}${i}`,
     prompt: `Какой ${sharp ? 'диез' : 'бемоль'} появляется в ключе ${ORDINALS[i]}?`,
     ...choices(order[i], shuffle(order.filter((_, j) => j !== i))),
+    hint: sharp
+      ? 'Диезы идут квинтами вверх, начиная с F♯: F → C → … Квинта — 5-я буква, если текущую считать первой (F G A B C).'
+      : 'Бемоли идут квартами вверх, начиная с B♭: B → E → … Кварта — 4-я буква, если текущую считать первой (B C D E).',
     explain: sharp
       ? 'Порядок диезов: F C G D A E B (фа–до–соль–ре–ля–ми–си) — каждый следующий на квинту выше предыдущего.'
       : 'Порядок бемолей — тот же ряд задом наперёд: B E A D G C F (си–ми–ля–ре–соль–до–фа).',
@@ -451,7 +500,7 @@ function qKeyOrder() {
 
 const factGen = (topic, list) => () => {
   const i = rand(list.length), x = list[i];
-  return { topic, id: `${topic}-fact${i}`, prompt: x.q, ...choices(x.a, shuffle(x.w)), explain: x.e };
+  return { topic, id: `${topic}-fact${i}`, prompt: x.q, ...choices(x.a, shuffle(x.w)), explain: x.e, hint: x.h };
 };
 
 const TOPICS = {
@@ -499,14 +548,14 @@ function saveDb() {
 }
 let db = loadDb();
 
-// Ошибка попадает в «Мои ошибки» и уходит оттуда после 2 верных ответов подряд.
-function record(q, ok) {
+// Ошибка попадает в «Мои ошибки» и уходит оттуда после 2 верных ответов подряд без подсказки.
+function record(q, ok, hinted) {
   const st = db.stats[q.topic] ||= { c: 0, t: 0 };
   st.t++;
   if (ok) st.c++;
   const m = db.mistakes[q.id];
   if (!ok) db.mistakes[q.id] = { q, streak: 0, at: m ? m.at : Date.now() };
-  else if (m && ++m.streak >= 2) delete db.mistakes[q.id];
+  else if (m && !hinted && ++m.streak >= 2) delete db.mistakes[q.id];
   saveDb();
 }
 
@@ -649,7 +698,7 @@ function startQuiz(mode, topic) {
   if (mode === 'ticket') qs = shuffle([...buildSet('fret', 7), ...buildSet('int', 7), ...buildSet('key', 6)]);
   else if (mode === 'topic') qs = buildSet(topic, 20);
   else qs = Object.values(db.mistakes).sort((a, b) => a.at - b.at).slice(0, 20).map(m => m.q);
-  quiz = { mode, topic, qs, i: 0, results: [], picked: null };
+  quiz = { mode, topic, qs, i: 0, results: [], hints: [], picked: null };
   show('quiz');
 }
 
@@ -663,10 +712,17 @@ function renderQuiz() {
   const errs = quiz.results.filter(r => r === false).length;
   const squares = quiz.qs.map((_, j) => {
     const r = quiz.results[j];
-    return `<i class="${r === true ? 'ok' : r === false ? 'bad' : ''}${j === quiz.i ? ' cur' : ''}"></i>`;
+    const cls = r === true ? (quiz.hints[j] ? 'hinted' : 'ok') : r === false ? 'bad' : '';
+    return `<i class="${cls}${j === quiz.i ? ' cur' : ''}"></i>`;
   }).join('');
 
+  const hinted = quiz.hints[quiz.i];
   let body = '';
+  if (q.hint && !done) {
+    body += hinted
+      ? `<div class="hintbox"><b>Подсказка</b><p>${q.hint}</p></div>`
+      : '<button class="btn ghost small hint-btn" data-action="hint">💡 Подсказка</button>';
+  }
   if (q.board) body += boardSVG(q.board, done && q.cells ? { cells: q.cells, picked: quiz.picked } : null);
   if (q.options) {
     body += `<div class="opts">${q.options.map((o, j) => {
@@ -680,10 +736,15 @@ function renderQuiz() {
   }
   if (done) {
     const ok = quiz.results[quiz.i];
-    const streak = quiz.mode === 'mistakes' && ok && db.mistakes[q.id] ? '<p class="small">Ещё один верный ответ — и вопрос уйдёт из ошибок.</p>' : '';
+    let streak = '';
+    if (quiz.mode === 'mistakes' && ok && db.mistakes[q.id]) {
+      streak = hinted
+        ? '<p class="small">С подсказкой вопрос не уходит из ошибок — в следующий раз попробуй без неё.</p>'
+        : '<p class="small">Ещё один верный ответ — и вопрос уйдёт из ошибок.</p>';
+    }
     body += `
       <div class="explain ${ok ? 'ok' : 'bad'}" id="explain">
-        <b>${ok ? 'Верно' : 'Неверно'}</b>
+        <b>${ok ? (hinted ? 'Верно, с подсказкой' : 'Верно') : 'Неверно'}</b>
         <p>${q.explain}</p>${q.cells && q.cells.length > 1 ? '<p class="small muted">Зелёным отмечены все места на грифе, где есть этот звук — подходит любое.</p>' : ''}${streak}
         ${q.audio ? '<button class="btn ghost small" data-action="play">▶ Послушать</button>' : ''}
       </div>
@@ -705,7 +766,7 @@ function renderQuiz() {
 function answer(ok, picked) {
   quiz.picked = picked;
   quiz.results[quiz.i] = ok;
-  record(quiz.qs[quiz.i], ok);
+  record(quiz.qs[quiz.i], ok, quiz.hints[quiz.i]);
   show('quiz', true);
   document.getElementById('explain')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -729,10 +790,12 @@ function renderResult() {
   const n = quiz.qs.length;
   const errs = quiz.results.filter(r => !r).length;
   const wrong = quiz.qs.filter((_, j) => !quiz.results[j]);
+  const nHints = quiz.qs.filter((_, j) => quiz.results[j] && quiz.hints[j]).length;
+  const hintNote = nHints ? ` · ${nHints} с подсказкой` : '';
   const head = quiz.mode === 'ticket'
     ? `<div class="verdict ${errs <= 2 ? 'ok' : 'bad'}">${errs <= 2 ? 'Сдано' : 'Не сдано'}</div>
-       <p class="center muted">Верно ${n - errs} из ${n} · ${errs} ${plural(errs, 'ошибка', 'ошибки', 'ошибок')}</p>`
-    : `<div class="verdict">${n - errs} из ${n}</div><p class="center muted">${quizTitle()}</p>`;
+       <p class="center muted">Верно ${n - errs} из ${n}${hintNote} · ${errs} ${plural(errs, 'ошибка', 'ошибки', 'ошибок')}</p>`
+    : `<div class="verdict">${n - errs} из ${n}</div><p class="center muted">${quizTitle()}${hintNote}</p>`;
   const list = wrong.length ? `
     <h3 class="section">Разбор ошибок</h3>
     ${wrong.map(q => `<div class="card review"><div class="card-title">${q.prompt}</div><p>${q.explain}</p></div>`).join('')}` : '';
@@ -829,6 +892,7 @@ app.addEventListener('click', e => {
     case 'again': startQuiz(quiz.mode, quiz.topic); break;
     case 'next': nextQuestion(); break;
     case 'play': playNotes(q.audio); break;
+    case 'hint': quiz.hints[quiz.i] = true; show('quiz', true); break;
     case 'opt':
       if (quiz.picked === null) answer(+el.dataset.i === q.answer, +el.dataset.i);
       break;

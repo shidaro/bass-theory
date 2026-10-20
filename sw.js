@@ -1,5 +1,5 @@
 // Кэш для работы без интернета. При изменении файлов увеличь версию.
-const CACHE = 'bass-theory-v1';
+const CACHE = 'bass-theory-v2';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

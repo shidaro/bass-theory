@@ -10,6 +10,8 @@
   --ok-soft: #e3f4ea;
   --bad: #d64545;
   --bad-soft: #fbe6e6;
+  --warn: #d99a1b;
+  --warn-soft: #fbf1dc;
   --wood: #ece2d0;
   --fret: #b9ab93;
   --string: #6d6355;
@@ -30,6 +32,8 @@
     --ok-soft: #173325;
     --bad: #f06262;
     --bad-soft: #3a1c1c;
+    --warn: #f0b43c;
+    --warn-soft: #362a12;
     --wood: #2b251d;
     --fret: #5d5243;
     --string: #b3a894;
@@ -124,6 +128,7 @@ button.card:disabled { opacity: 0.55; cursor: default; }
 .squares i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
 .squares i.ok { background: var(--ok); }
 .squares i.bad { background: var(--bad); }
+.squares i.hinted { background: var(--warn); }
 .squares i.cur:not(.ok):not(.bad) { background: var(--text); }
 
 .qtopic { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -145,6 +150,11 @@ button.card:disabled { opacity: 0.55; cursor: default; }
 .explain b { font-size: 17px; color: var(--ok); }
 .explain.bad b { color: var(--bad); }
 .explain p { margin: 6px 0 0; }
+
+.hint-btn { display: block; margin: -4px 0 12px; }
+.hintbox { margin: -4px 0 12px; padding: 12px 14px; border-radius: 12px; background: var(--warn-soft); border-left: 4px solid var(--warn); }
+.hintbox b { color: var(--warn); font-size: 15px; }
+.hintbox p { margin: 4px 0 0; font-size: 15px; }
 
 .small { font-size: 14px; }
 .muted { color: var(--muted); }
